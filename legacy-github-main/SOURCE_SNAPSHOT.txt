@@ -1,0 +1,17 @@
+GitHub source snapshot: https://github.com/marvin11122/vectord-os/tree/65de6f9d43f3dad93d42d82200b7abf6169990ae
+Commit: 65de6f9d43f3dad93d42d82200b7abf6169990ae (main, 2026-09-24 12:57 UTC)
+
+This folder preserves the source, documentation, scripts, and committed
+userland/bin ELF32 programs needed for review and staged x86-64 porting. It is
+not a byte-for-byte mirror of the Git tree. Generated objects, build/iso
+staging, the kernel ELF, ISO images, and disk.img were omitted from this
+working bundle. At the recorded commit, GitHub's tree listed:
+
+  build/vectord-kernel.elf                  246040 bytes
+  build/iso/boot/vectord-kernel             246040 bytes
+  vectord-os.iso                           32548864 bytes
+  vectord.iso                              32483328 bytes
+  disk.img                                 10485760 bytes
+
+The source snapshot is not linked into the active x86-64 kernel. The private
+GitHub repository was left unchanged.

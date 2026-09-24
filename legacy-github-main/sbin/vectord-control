@@ -1,0 +1,260 @@
+#!/bin/sh
+set -eu
+
+ARCH=${VECTORD_ARCH:-i386}
+ROOT_DIR=${VECTORD_ROOT:-/opt/vectord}
+KERNEL=${VECTORD_KERNEL:-/boot/vectord-kernel}
+KERNEL64=${VECTORD_KERNEL64:-/boot/vectord-kernel64}
+ISO=${VECTORD_ISO:-$ROOT_DIR/vectord-os.iso}
+ISO_GUI=${VECTORD_ISO_GUI:-$ROOT_DIR/vectord-os-gui.iso}
+ISO64=${VECTORD_ISO64:-$ROOT_DIR/vectord-os64.iso}
+RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}
+VNC_DISPLAY=${VECTORD_VNC_DISPLAY:-1}
+HEADLESS=${VECTORD_HEADLESS:-0}
+BOOT_MODE=${VECTORD_BOOT:-kernel}
+
+set_arch() {
+    ARCH=$1
+    case "$ARCH" in
+        x86_64)
+            QEMU=${VECTORD_QEMU:-qemu-system-x86_64}
+            if [ -n "${VECTORD_DATA_FILE:-}" ]; then
+                DATA_FILE=$VECTORD_DATA_FILE
+            else
+                DATA_FILE=${VECTORD_DATA64_FILE:-$ROOT_DIR/vectord-data64.img}
+            fi
+            PID_FILE=${VECTORD_PID_FILE:-$RUNTIME_DIR/vectord-qemu64.pid}
+            LOG_FILE=${VECTORD_LOG_FILE:-$RUNTIME_DIR/vectord-qemu64.log}
+            ;;
+        *)
+            ARCH=i386
+            QEMU=${VECTORD_QEMU:-qemu-system-i386}
+            DATA_FILE=${VECTORD_DATA_FILE:-$ROOT_DIR/vectord-data.img}
+            PID_FILE=${VECTORD_PID_FILE:-$RUNTIME_DIR/vectord-qemu.pid}
+            LOG_FILE=${VECTORD_LOG_FILE:-$RUNTIME_DIR/vectord-qemu.log}
+            ;;
+    esac
+}
+
+set_arch "${VECTORD_ARCH:-i386}"
+
+fail() {
+    printf '%s\n' "$*" >&2
+    exit 1
+}
+
+pid_value() {
+    [ -s "$PID_FILE" ] || return 1
+    IFS= read -r pid < "$PID_FILE"
+    [ -n "$pid" ] || return 1
+    printf '%s\n' "$pid"
+}
+
+running() {
+    pid=$(pid_value 2>/dev/null) || return 1
+    kill -0 "$pid" 2>/dev/null
+}
+
+check_assets() {
+    if [ "$ARCH" = x86_64 ]; then
+        [ -r "$ISO64" ] || fail "VECTORD x86-64 ISO is not readable: $ISO64"
+    else
+        [ -r "$KERNEL" ] || fail "VECTORD kernel is not readable: $KERNEL"
+        if [ "$BOOT_MODE" = iso ] || [ "$BOOT_MODE" = gui ]; then
+            [ -r "$ISO" ] || fail "VECTORD ISO is not readable: $ISO"
+        fi
+    fi
+    [ -x "$QEMU" ] || command -v "$QEMU" >/dev/null 2>&1 || fail "QEMU is not available: $QEMU"
+    [ -e "$DATA_FILE" ] || fail "VECTORD data image is missing: $DATA_FILE"
+}
+
+run_qemu() {
+    if [ "$ARCH" = i386 ] && [ "$HEADLESS" != 1 ] && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && [ "$BOOT_MODE" = kernel ]; then
+        BOOT_MODE=gui
+    fi
+    if [ "$BOOT_MODE" = gui ]; then
+        ISO=$ISO_GUI
+    fi
+    check_assets
+    mkdir -p "$RUNTIME_DIR"
+    if [ "$ARCH" = x86_64 ]; then
+        if [ "$HEADLESS" = 1 ]; then
+            exec "$QEMU" -cdrom "$ISO64" -boot d -m 512M -smp 2 -vga std \
+                -display none -serial stdio -monitor none -no-reboot -no-shutdown \
+                -drive "file=$DATA_FILE,if=ide,format=raw,media=disk" \
+                -netdev user,id=net0 -device e1000,netdev=net0
+        fi
+        if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+            exec "$QEMU" -cdrom "$ISO64" -boot d -m 512M -smp 2 -vga std \
+                -display gtk -serial "file:$LOG_FILE" -monitor none -no-reboot -no-shutdown \
+                -drive "file=$DATA_FILE,if=ide,format=raw,media=disk" \
+                -netdev user,id=net0 -device e1000,netdev=net0
+        fi
+        exec "$QEMU" -cdrom "$ISO64" -boot d -m 512M -smp 2 -vga std \
+            -display "vnc=127.0.0.1:$VNC_DISPLAY" -serial "file:$LOG_FILE" \
+            -monitor none -no-reboot -no-shutdown \
+            -drive "file=$DATA_FILE,if=ide,format=raw,media=disk" \
+            -netdev user,id=net0 -device e1000,netdev=net0
+    fi
+    if [ "$HEADLESS" = 1 ]; then
+        if [ "$BOOT_MODE" = iso ] || [ "$BOOT_MODE" = gui ]; then
+            exec "$QEMU" -cdrom "$ISO" -boot d -m 512M -smp 2 -vga std \
+                -display none -serial stdio -monitor none -no-reboot -no-shutdown \
+                -drive "file=$DATA_FILE,if=ide,format=raw,media=disk" \
+                -netdev user,id=net0 -device e1000,netdev=net0
+        fi
+        exec "$QEMU" -kernel "$KERNEL" -m 512M -smp 2 -vga std \
+            -display none -serial stdio -monitor none -no-reboot -no-shutdown \
+            -drive "file=$DATA_FILE,if=ide,format=raw,media=disk" \
+            -netdev user,id=net0 -device e1000,netdev=net0
+    fi
+    if [ "$BOOT_MODE" = iso ] || [ "$BOOT_MODE" = gui ]; then
+        if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+            exec "$QEMU" -cdrom "$ISO" -boot d -m 512M -smp 2 -vga std \
+                -display gtk -serial "file:$LOG_FILE" -monitor none -no-reboot -no-shutdown \
+                -drive "file=$DATA_FILE,if=ide,format=raw,media=disk" \
+                -netdev user,id=net0 -device e1000,netdev=net0
+        fi
+        exec "$QEMU" -cdrom "$ISO" -boot d -m 512M -smp 2 -vga std \
+            -display "vnc=127.0.0.1:$VNC_DISPLAY" -serial "file:$LOG_FILE" \
+            -monitor none -no-reboot -no-shutdown \
+            -drive "file=$DATA_FILE,if=ide,format=raw,media=disk" \
+            -netdev user,id=net0 -device e1000,netdev=net0
+    fi
+    if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+        exec "$QEMU" -kernel "$KERNEL" -m 512M -smp 2 -vga std \
+            -display gtk -serial "file:$LOG_FILE" -monitor none -no-reboot -no-shutdown \
+            -drive "file=$DATA_FILE,if=ide,format=raw,media=disk" \
+            -netdev user,id=net0 -device e1000,netdev=net0
+    fi
+    exec "$QEMU" -kernel "$KERNEL" -m 512M -smp 2 -vga std \
+        -display "vnc=127.0.0.1:$VNC_DISPLAY" -serial "file:$LOG_FILE" \
+        -monitor none -no-reboot -no-shutdown \
+        -drive "file=$DATA_FILE,if=ide,format=raw,media=disk" \
+        -netdev user,id=net0 -device e1000,netdev=net0
+}
+
+start_qemu() {
+    if running; then
+        printf 'VECTORD %s is already running (PID %s)\n' "$ARCH" "$(pid_value)"
+        return 0
+    fi
+    rm -f "$PID_FILE"
+    : > "$LOG_FILE"
+    "$0" run >>"$LOG_FILE" 2>&1 &
+    pid=$!
+    printf '%s\n' "$pid" > "$PID_FILE"
+    sleep 1
+    if ! kill -0 "$pid" 2>/dev/null; then
+        rm -f "$PID_FILE"
+        fail "VECTORD failed to start; inspect $LOG_FILE"
+    fi
+    if [ "$HEADLESS" = 1 ]; then
+        printf 'VECTORD %s started headless (PID %s)\n' "$ARCH" "$pid"
+    elif [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+        printf 'VECTORD %s started in a GDM/GTK window (PID %s)\n' "$ARCH" "$pid"
+    else
+        printf 'VECTORD %s started; VNC display :%s (PID %s)\n' "$ARCH" "$VNC_DISPLAY" "$pid"
+    fi
+}
+
+stop_qemu() {
+    if ! running; then
+        rm -f "$PID_FILE"
+        printf 'VECTORD %s is not running\n' "$ARCH"
+        return 0
+    fi
+    pid=$(pid_value)
+    kill "$pid" 2>/dev/null || true
+    i=0
+    while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 50 ]; do
+        sleep 0.1
+        i=$((i + 1))
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+        kill -KILL "$pid" 2>/dev/null || true
+    fi
+    rm -f "$PID_FILE"
+    printf 'VECTORD %s stopped\n' "$ARCH"
+}
+
+status_qemu() {
+    if running; then
+        printf 'VECTORD %s is running (PID %s)\n' "$ARCH" "$(pid_value)"
+        printf 'Log: %s\n' "$LOG_FILE"
+        return 0
+    fi
+    printf 'VECTORD %s is not running\n' "$ARCH"
+    return 1
+}
+
+console_qemu() {
+    [ -f "$LOG_FILE" ] || fail "VECTORD log is missing: $LOG_FILE"
+    exec tail -f "$LOG_FILE"
+}
+
+case "${1:-help}" in
+    start)
+        start_qemu
+        ;;
+    start64)
+        set_arch x86_64
+        VECTORD_ARCH=x86_64
+        export VECTORD_ARCH
+        start_qemu
+        ;;
+    stop)
+        stop_qemu
+        ;;
+    stop64)
+        set_arch x86_64
+        VECTORD_ARCH=x86_64
+        export VECTORD_ARCH
+        stop_qemu
+        ;;
+    restart)
+        stop_qemu
+        start_qemu
+        ;;
+    restart64)
+        set_arch x86_64
+        VECTORD_ARCH=x86_64
+        export VECTORD_ARCH
+        stop_qemu
+        start_qemu
+        ;;
+    status)
+        status_qemu
+        ;;
+    status64)
+        set_arch x86_64
+        VECTORD_ARCH=x86_64
+        export VECTORD_ARCH
+        status_qemu
+        ;;
+    run)
+        run_qemu
+        ;;
+    run64)
+        set_arch x86_64
+        VECTORD_ARCH=x86_64
+        export VECTORD_ARCH
+        run_qemu
+        ;;
+    console)
+        console_qemu
+        ;;
+    console64)
+        set_arch x86_64
+        VECTORD_ARCH=x86_64
+        export VECTORD_ARCH
+        console_qemu
+        ;;
+    paths)
+        printf 'arch=%s\nkernel32=%s\nkernel64=%s\niso32=%s\niso_gui=%s\niso64=%s\ndata=%s\n' "$ARCH" "$KERNEL" "$KERNEL64" "$ISO" "$ISO_GUI" "$ISO64" "$DATA_FILE"
+        ;;
+    *)
+        printf '%s\n' 'Usage: vectord-control {start|start64|stop|stop64|restart|restart64|status|status64|run|run64|console|console64|paths}'
+        ;;
+esac
+

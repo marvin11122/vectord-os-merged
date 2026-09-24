@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=VECTORD AKASHA x86-64 Bridge
+Comment=Run the native x86-64 VECTORD bridge beside Debian
+Exec=/usr/local/bin/vectord-control start64
+Terminal=false
+Categories=System;Emulator;
+OnlyShowIn=GNOME;
+

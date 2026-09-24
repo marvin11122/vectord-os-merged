@@ -1,0 +1,19 @@
+# Historical build log retained from the uploaded archive. This run predates
+# the merged µIR host test target; see MERGE_VALIDATION.md for current results.
+rm -rf build
+mkdir -p build
+cc -m64 -ffreestanding -fno-pie -fno-pic -c src/arch/x86_64/boot.S -o build/boot.o
+cc -m64 -ffreestanding -fno-pie -fno-pic -c src/arch/x86_64/isr.S -o build/isr.o
+cc -m64 -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mcmodel=kernel -nostdlib -Wall -Wextra -Werror -O2 -Iinclude -c src/kernel/main.c -o build/main.o
+cc -m64 -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mcmodel=kernel -nostdlib -Wall -Wextra -Werror -O2 -Iinclude -c src/kernel/serial.c -o build/serial.o
+cc -m64 -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mcmodel=kernel -nostdlib -Wall -Wextra -Werror -O2 -Iinclude -c src/kernel/idt.c -o build/idt.o
+cc -m64 -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mcmodel=kernel -nostdlib -Wall -Wextra -Werror -O2 -Iinclude -c src/kernel/apic.c -o build/apic.o
+cc -m64 -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mcmodel=kernel -nostdlib -Wall -Wextra -Werror -O2 -Iinclude -c src/kernel/memory.c -o build/memory.o
+cc -m64 -ffreestanding -fno-stack-protector -fno-pie -fno-pic -mno-red-zone -mcmodel=kernel -nostdlib -Wall -Wextra -Werror -O2 -Iinclude -c src/kernel/pci.c -o build/pci.o
+ld -m elf_x86_64 -nostdlib -T src/arch/x86_64/linker.ld build/boot.o build/isr.o build/main.o build/serial.o build/idt.o build/apic.o build/memory.o build/pci.o -o build/vectord.elf
+BUILD OK: build/vectord.elf
+  Class:                             ELF64
+  Machine:                           Advanced Micro Devices X86-64
+  Entry point address:               0x101000
+  [ 1] .multiboot2       PROGBITS         0000000000100000  00001000
+STATIC CHECK OK

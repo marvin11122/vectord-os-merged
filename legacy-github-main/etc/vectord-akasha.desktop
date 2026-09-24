@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=VECTORD AKASHA
+Comment=Run VECTORD OS beside Debian
+Exec=/usr/local/bin/vectord-control start
+Terminal=false
+Categories=System;Emulator;
+OnlyShowIn=GNOME;
+

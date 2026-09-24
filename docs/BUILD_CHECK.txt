@@ -1,0 +1,4 @@
+This file replaces the pre-merge build note inherited from the uploaded archive.
+That note incorrectly said NASM was required. The active Makefile assembles the
+.S sources with GCC's integrated assembler. See MERGE_VALIDATION.md for the
+build and test results for this merged working copy.

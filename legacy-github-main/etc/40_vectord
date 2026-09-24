@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+root_uuid=c36e71a1-0c64-4fab-b552-aae0e46f5898
+kernel=$(ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -n 1 || true)
+initrd=$(ls -1 /boot/initrd.img-* 2>/dev/null | sort -V | tail -n 1 || true)
+kernel=${kernel##*/}
+initrd=${initrd##*/}
+[ -n "$kernel" ] || kernel=vmlinuz-6.12.107+deb13-amd64
+[ -n "$initrd" ] || initrd=initrd.img-6.12.107+deb13-amd64
+
+cat <<EOF
+submenu 'VECTORD / AKASHA (experimental)' --id vectord {
+    menuentry 'VECTORD OS 2026.1 (standalone serial shell)' --id vectord-serial {
+        search --no-floppy --fs-uuid --set=root $root_uuid
+        multiboot /boot/vectord-kernel
+    }
+    menuentry 'VECTORD OS 2026.1 (standalone VBE desktop shell)' --id vectord-desktop {
+        search --no-floppy --fs-uuid --set=root $root_uuid
+        multiboot /boot/vectord-kernel-gui
+    }
+    menuentry 'VECTORD OS x86-64 (AKASHA bridge)' --id vectord-x64 {
+        search --no-floppy --fs-uuid --set=root $root_uuid
+        multiboot2 /boot/vectord-kernel64
+    }
+    menuentry 'Debian GNU/Linux (default fallback)' --id vectord-debian {
+        search --no-floppy --fs-uuid --set=root $root_uuid
+        linux /boot/$kernel root=UUID=$root_uuid ro quiet splash
+        initrd /boot/$initrd
+    }
+}
+EOF
+
